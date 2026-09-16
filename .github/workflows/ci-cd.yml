@@ -13,24 +13,33 @@ jobs:
       IMAGE_NAME: cicd-lab
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build image for testing
-        run: docker build -t ${{ env.IMAGE_NAME }}:test .
+      - name: Build image
+        run: docker build -t $IMAGE_NAME:test .
 
-      - name: Run tests inside container
-        run: docker run --rm ${{ env.IMAGE_NAME }}:test npm test
+      - name: Run tests
+        run: docker run --rm $IMAGE_NAME:test npm test
 
       - name: Login to private registry
-        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
 
-      - name: Tag image for private registry
+      - name: Tag image
         run: |
-          docker tag ${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker tag ${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker tag $IMAGE_NAME:test $REGISTRY/$IMAGE_NAME:latest
+          docker tag $IMAGE_NAME:test $REGISTRY/$IMAGE_NAME:$GITHUB_SHA
 
-      - name: Push to private registry
+      - name: Push image
         run: |
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push $REGISTRY/$IMAGE_NAME:latest
+          docker push $REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker image rm $IMAGE_NAME:test || true
