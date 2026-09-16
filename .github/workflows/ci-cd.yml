@@ -1,0 +1,36 @@
+name: Docker CI/CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-test-push:
+    runs-on: self-hosted
+
+    env:
+      REGISTRY: 10.246.127.193:5000
+      IMAGE_NAME: cicd-lab
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image for testing
+        run: docker build -t ${{ env.IMAGE_NAME }}:test .
+
+      - name: Run tests inside container
+        run: docker run --rm ${{ env.IMAGE_NAME }}:test npm test
+
+      - name: Login to private registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
+      - name: Tag image for private registry
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Push to private registry
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
